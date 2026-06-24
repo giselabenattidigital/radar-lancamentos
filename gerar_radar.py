@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Radar de Lancamentos v3 - novidades do setor + Agenda de Feiras.
-# Busca via RSS do Google Noticias. Roda no GitHub Actions.
+# Radar de Lancamentos v4 - novidades do setor + Agenda de Feiras (botao) +
+# destaque NOVO para noticias dos ultimos 2 dias. RSS do Google Noticias.
 import urllib.request, urllib.parse, html, re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta, date
 
 JANELA_DIAS = 30
+DESTAQUE_DIAS = 2
 MAX_POR_CATEGORIA = 6
 
 CATEGORIAS = [
@@ -156,8 +157,8 @@ def feiras_html():
         cards += ('<div class="card"><div class="brand">' + html.escape(f["local"]) +
                   ' <span class="data">' + html.escape(f["quando"]) + "</span></div><h3>" +
                   html.escape(f["nome"]) + "</h3><p>" + html.escape(f["promessa"]) + "</p></div>")
-    return ('<div class="section"><h2><span class="tag fei">Agenda de Feiras do Setor</span></h2>'
-            '<div class="grid">' + cards + "</div></div>")
+    return ('<details class="agenda"><summary>Agenda de Feiras do Setor (' + str(len(vig)) +
+            ') &middot; clique para abrir</summary><div class="grid">' + cards + "</div></details>")
 
 
 def card(it):
@@ -168,7 +169,11 @@ def card(it):
     fo = html.escape(it["fonte"]) if it["fonte"] else "Fonte"
     dt = it["dt"].astimezone(TZ_BR).strftime("%d/%m/%Y") if it["dt"] else ""
     dh = ('<span class="data">' + dt + "</span>") if dt else ""
-    return ('<div class="card"><div class="brand">' + fo + " " + dh + "</div><h3>" + ti +
+    dias = (datetime.now(timezone.utc) - it["dt"]).days if it["dt"] else 999
+    novo = 0 <= dias <= DESTAQUE_DIAS
+    cls = "card novo" if novo else "card"
+    badge = '<span class="novo-tag">NOVO</span>' if novo else ""
+    return ('<div class="' + cls + '"><div class="brand">' + fo + " " + dh + badge + "</div><h3>" + ti +
             '</h3><a href="' + html.escape(it["link"]) + '" target="_blank" rel="noopener">Ler novidade &rarr;</a></div>')
 
 
@@ -203,15 +208,18 @@ CSS = ("*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-syste
        "background:#f6f7f4;color:#1f2421;line-height:1.5;padding:24px 18px 60px}.wrap{max-width:820px;margin:0 auto}"
        ".kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#6b8e23;font-weight:700}"
        "h1{font-size:27px;font-weight:800;margin:4px 0 6px}.sub{color:#586159;font-size:14px}"
-       ".meta{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:16px 0 22px;padding:12px 14px;"
+       ".meta{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:16px 0 18px;padding:12px 14px;"
        "background:#fff;border:1px solid #e6e9e2;border-radius:12px;font-size:13px;color:#586159}.meta b{color:#1f2421}"
        ".dot{width:8px;height:8px;border-radius:50%;background:#6b8e23;display:inline-block;margin-right:6px}"
+       ".agenda{margin:0 0 6px}.agenda summary{cursor:pointer;display:inline-block;background:#11707a;color:#fff;"
+       "font-weight:700;font-size:13px;padding:9px 15px;border-radius:10px}.agenda[open] summary{margin-bottom:14px}"
        ".section{margin:26px 0 8px}.section h2{font-size:17px;font-weight:800;margin-bottom:12px}"
        ".tag{font-size:11px;font-weight:700;color:#fff;border-radius:999px;padding:3px 11px}"
        ".tag.glu{background:#c0792e}.tag.sup{background:#2e6fc0}.tag.fun{background:#7a4ec0}.tag.gra{background:#3f9d6b}"
-       ".tag.fei{background:#11707a}"
        ".grid{display:grid;gap:12px}.card{background:#fff;border:1px solid #e6e9e2;border-radius:12px;padding:14px 16px;margin-bottom:12px}"
        ".card.vazio{background:#fafbf8;border-style:dashed}"
+       ".card.novo{border-color:#cfe09a;border-left:4px solid #6b8e23;background:#fbfdf6}"
+       ".novo-tag{background:#6b8e23;color:#fff;font-size:10px;font-weight:800;border-radius:6px;padding:1px 6px;margin-left:8px;letter-spacing:.03em}"
        ".brand{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b8e23}"
        ".data{color:#9aa196;font-weight:600;margin-left:6px}.card h3{font-size:15.5px;font-weight:700;margin:3px 0 5px}"
        ".card p{font-size:13.5px;color:#4a534b}"
