@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Radar de Lancamentos v2 - gera index.html via RSS do Google Noticias.
+# Radar de Lancamentos v3 - novidades do setor + Agenda de Feiras.
+# Busca via RSS do Google Noticias. Roda no GitHub Actions.
 import urllib.request, urllib.parse, html, re
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
 JANELA_DIAS = 30
 MAX_POR_CATEGORIA = 6
@@ -47,6 +48,32 @@ RUIDO = ["receita", "como fazer", "beneficios", "vale a pena", "ranking", "melho
          "passo a passo", "dieta de", "preferid", "odei", "emagrec", "cristiano ronaldo",
          "famos", "celebridade", "horoscopo", "saiba por que", "veja como", "tendencia",
          "ganha espaco", "fenomeno", "o que e", "entenda", "lista de"]
+
+# Agenda de feiras (curada). "fim" = ultimo dia (YYYY-MM-DD); feira passada some sozinha.
+FEIRAS = [
+    {"nome": "Fi South America (FiSA) 2026", "fim": "2026-08-06",
+     "quando": "4 a 6 de agosto de 2026", "local": "Sao Paulo Expo, SP",
+     "promessa": "Maior feira de ingredientes de alimentos e bebidas da America do Sul; "
+                 "foco em saudaveis, naturais, plant-based, adocantes, proteinas e vitaminas."},
+    {"nome": "Fitness Brasil Expo 2026", "fim": "2026-08-29",
+     "quando": "27 a 29 de agosto de 2026", "local": "Sao Paulo, SP",
+     "promessa": "Um dos maiores eventos fitness da America Latina: marcas, cursos tecnicos e gestao de negocios."},
+    {"nome": "Arnold Sports Festival South America 2026", "fim": "2026-08-29",
+     "quando": "27 a 29 de agosto de 2026", "local": "Transamerica Expo Center, SP",
+     "promessa": "Festival multiesportivo com grande expo de suplementos e nutricao esportiva; palco de lancamentos de marca."},
+    {"nome": "Connect Fitness Experience 2026", "fim": "2026-09-30",
+     "quando": "Setembro de 2026", "local": "Fortaleza, CE",
+     "promessa": "Experiencia fitness com foco no mercado do Nordeste."},
+    {"nome": "NEEX Expo - Nutricao Esportiva 2026", "fim": "2026-10-31",
+     "quando": "Outubro de 2026 (data a confirmar)", "local": "Expo Center Norte, SP",
+     "promessa": "Encontro B2B dos maiores players de nutricao e suplementacao alimentar."},
+    {"nome": "APAS Show 2027", "fim": "2027-05-31",
+     "quando": "Maio de 2027", "local": "Expo Center Norte, SP",
+     "promessa": "Maior feira supermercadista do mundo; saudabilidade, conveniencia e novidades de varejo."},
+    {"nome": "Naturaltech / Bio Brazil Fair 2027", "fim": "2027-06-30",
+     "quando": "Junho de 2027", "local": "Distrito Anhembi, SP",
+     "promessa": "Maior feira de produtos naturais da America Latina; alimentos, saude e beleza."},
+]
 
 GNEWS = "https://news.google.com/rss/search?q={q}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
 TZ_BR = timezone(timedelta(hours=-3))
@@ -118,6 +145,21 @@ def coletar():
     return list(pool.values())
 
 
+def feiras_html():
+    hoje = datetime.now(TZ_BR).date()
+    vig = [f for f in FEIRAS if date.fromisoformat(f["fim"]) >= hoje]
+    vig.sort(key=lambda f: f["fim"])
+    if not vig:
+        return ""
+    cards = ""
+    for f in vig:
+        cards += ('<div class="card"><div class="brand">' + html.escape(f["local"]) +
+                  ' <span class="data">' + html.escape(f["quando"]) + "</span></div><h3>" +
+                  html.escape(f["nome"]) + "</h3><p>" + html.escape(f["promessa"]) + "</p></div>")
+    return ('<div class="section"><h2><span class="tag fei">Agenda de Feiras do Setor</span></h2>'
+            '<div class="grid">' + cards + "</div></div>")
+
+
 def card(it):
     ti = it["titulo"]
     if it["fonte"] and ti.endswith(" - " + it["fonte"]):
@@ -149,7 +191,9 @@ def gerar():
                       html.escape(cat["nome"]) + '</span></h2><div class="grid">' + cards + "</div></div>")
         print(cat["nome"] + ": " + str(len(itens)))
     pagina = (TEMPLATE.replace("__DATA__", html.escape(quando))
-              .replace("__TOTAL__", str(total)).replace("__SECOES__", "".join(secoes)))
+              .replace("__TOTAL__", str(total))
+              .replace("__FEIRAS__", feiras_html())
+              .replace("__SECOES__", "".join(secoes)))
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(pagina)
     print("OK - " + str(total) + " novidades.")
@@ -165,10 +209,12 @@ CSS = ("*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-syste
        ".section{margin:26px 0 8px}.section h2{font-size:17px;font-weight:800;margin-bottom:12px}"
        ".tag{font-size:11px;font-weight:700;color:#fff;border-radius:999px;padding:3px 11px}"
        ".tag.glu{background:#c0792e}.tag.sup{background:#2e6fc0}.tag.fun{background:#7a4ec0}.tag.gra{background:#3f9d6b}"
+       ".tag.fei{background:#11707a}"
        ".grid{display:grid;gap:12px}.card{background:#fff;border:1px solid #e6e9e2;border-radius:12px;padding:14px 16px;margin-bottom:12px}"
        ".card.vazio{background:#fafbf8;border-style:dashed}"
        ".brand{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b8e23}"
        ".data{color:#9aa196;font-weight:600;margin-left:6px}.card h3{font-size:15.5px;font-weight:700;margin:3px 0 5px}"
+       ".card p{font-size:13.5px;color:#4a534b}"
        ".card a{display:inline-block;margin-top:8px;font-size:12.5px;color:#2e6fc0;text-decoration:none;font-weight:600}"
        ".note{margin-top:30px;padding:14px 16px;background:#eef3e6;border:1px solid #d8e3c6;border-radius:12px;font-size:13px;color:#46512f}"
        "footer{margin-top:34px;text-align:center;font-size:12px;color:#9aa196}")
@@ -181,6 +227,7 @@ TEMPLATE = ('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
             "&middot; Funcionais e naturais &middot; mercado Brasil</div>"
             '<div class="meta"><span><span class="dot"></span><b>Atualizacao automatica</b> todo dia de manha</span>'
             "<span>Ultima varredura: <b>__DATA__</b></span><span><b>__TOTAL__</b> novidades nesta edicao</span></div>"
+            "__FEIRAS__"
             "__SECOES__"
             '<div class="note">Esta pagina e atualizada sozinha toda manha por um robo que varre as noticias do '
             "setor. Basta abrir e dar uma passada de olho.</div>"
